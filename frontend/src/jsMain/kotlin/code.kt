@@ -101,7 +101,7 @@ fun CanvasRenderingContext2D.drawRectangle(rectangle: Rectangle) {
       rectangle.x.toDouble(),
       rectangle.y.toDouble(),
       rectangle.width.toDouble(),
-      rectangle.height.toDouble()
+      rectangle.height.toDouble(),
   )
 }
 
@@ -149,17 +149,14 @@ fun createButtonCreateNewBlock(onCreateNewBlock: () -> Unit): HTMLButtonElement 
 
 fun findBlockForDragging(blocks: MutableList<Rectangle>, x: Int, y: Int): Rectangle? {
   return blocks.find {
-    it.left + RESIZE_HANDLE_HALF_WIDTH < x &&
-        x < it.right - RESIZE_HANDLE_HALF_WIDTH &&
-        it.top + RESIZE_HANDLE_HALF_WIDTH < y &&
-        y < it.bottom - RESIZE_HANDLE_HALF_WIDTH
+    it.left + RESIZE_HANDLE_HALF_WIDTH < x && x < it.right - RESIZE_HANDLE_HALF_WIDTH && it.top + RESIZE_HANDLE_HALF_WIDTH < y && y < it.bottom - RESIZE_HANDLE_HALF_WIDTH
   }
 }
 
 class DraggingRectangle(
   private val rectangle: Rectangle,
   private val offsetX: Int,
-  private val offsetY: Int
+  private val offsetY: Int,
 ) {
 
   fun moveTo(x: Int, y: Int) {
@@ -213,10 +210,10 @@ fun addDragFeature(canvas: HTMLCanvasElement, blocks: MutableList<Rectangle>, re
 
 fun findBlockBorder(blocks: List<Rectangle>, x: Int, y: Int): ResizingRectangle? {
   return blocks.firstNotNullOfOrNull { block ->
-    val nearTop = (block.top - y).absoluteValue <= RESIZE_HANDLE_HALF_WIDTH
-    val nearBottom = (block.bottom - y).absoluteValue <= RESIZE_HANDLE_HALF_WIDTH
-    val nearLeft = (block.left - x).absoluteValue <= RESIZE_HANDLE_HALF_WIDTH
-    val nearRight = (block.right - x).absoluteValue <= RESIZE_HANDLE_HALF_WIDTH
+    val nearTop = (block.top - y).absoluteValue <= RESIZE_HANDLE_HALF_WIDTH && block.left - RESIZE_HANDLE_HALF_WIDTH < x && x < block.right + RESIZE_HANDLE_HALF_WIDTH
+    val nearBottom = (block.bottom - y).absoluteValue <= RESIZE_HANDLE_HALF_WIDTH && block.left - RESIZE_HANDLE_HALF_WIDTH < x && x < block.right + RESIZE_HANDLE_HALF_WIDTH
+    val nearLeft = (block.left - x).absoluteValue <= RESIZE_HANDLE_HALF_WIDTH && block.top - RESIZE_HANDLE_HALF_WIDTH < y && y < block.bottom + RESIZE_HANDLE_HALF_WIDTH
+    val nearRight = (block.right - x).absoluteValue <= RESIZE_HANDLE_HALF_WIDTH && block.top - RESIZE_HANDLE_HALF_WIDTH < y && y < block.bottom + RESIZE_HANDLE_HALF_WIDTH
     when {
       nearTop && nearLeft -> ResizingRectangle(block, Rectangle.Handle.TopLeft)
       nearTop && nearRight -> ResizingRectangle(block, Rectangle.Handle.TopRight)
@@ -312,7 +309,7 @@ fun init() {
         blocks.add(Rectangle(x, y, 50, 50))
         console.log(blocks)
         redraw()
-      }
+      },
   )
 
   addDragFeature(canvas, blocks, ::redraw)
