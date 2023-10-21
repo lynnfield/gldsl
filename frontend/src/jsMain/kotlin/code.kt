@@ -195,15 +195,19 @@ fun addDragFeature(canvas: HTMLCanvasElement, blocks: MutableList<Rectangle>, re
   })
 
   canvas.addEventListener("mousemove", { e ->
+    check(e is MouseEvent) { "should be MouseEvent, but $e" }
+
+    val mouseX = (e.clientX - canvas.getBoundingClientRect().left).roundToInt()
+    val mouseY = (e.clientY - canvas.getBoundingClientRect().top).roundToInt()
+
     draggableBlock?.also {
-      check(e is MouseEvent) { "should be MouseEvent, but $e" }
-
-      val mouseX = (e.clientX - canvas.getBoundingClientRect().left).roundToInt()
-      val mouseY = (e.clientY - canvas.getBoundingClientRect().top).roundToInt()
-
       it.moveTo(mouseX, mouseY)
 
       redraw()
+
+      canvas.style.cursor = "move"
+    } ?: findBlockForDragging(blocks, mouseX, mouseY)?.also {
+      canvas.style.cursor = "move"
     }
   })
 }
@@ -230,7 +234,7 @@ fun findBlockBorder(blocks: List<Rectangle>, x: Int, y: Int): ResizingRectangle?
 
 class ResizingRectangle(
   private val rectangle: Rectangle,
-  private val handle: Rectangle.Handle,
+  val handle: Rectangle.Handle,
 ) {
 
   fun resizeTo(x: Int, y: Int) {
@@ -265,17 +269,32 @@ fun addResizeFeature(canvas: HTMLCanvasElement, blocks: List<Rectangle>, redraw:
   })
 
   canvas.addEventListener("mousemove", { e ->
+    check(e is MouseEvent) { "should be MouseEvent, but $e" }
+
+    val mouseX = (e.clientX - canvas.getBoundingClientRect().left).roundToInt()
+    val mouseY = (e.clientY - canvas.getBoundingClientRect().top).roundToInt()
+
     resizingBlock?.also {
-      check(e is MouseEvent) { "should be MouseEvent, but $e" }
-
-      val mouseX = (e.clientX - canvas.getBoundingClientRect().left).roundToInt()
-      val mouseY = (e.clientY - canvas.getBoundingClientRect().top).roundToInt()
-
       it.resizeTo(mouseX, mouseY)
 
       redraw()
+
+      canvas.style.cursor = it.handle.asCursorStyle()
+    } ?: findBlockBorder(blocks, mouseX, mouseY)?.also {
+      canvas.style.cursor = it.handle.asCursorStyle()
     }
   })
+}
+
+private fun Rectangle.Handle.asCursorStyle(): String = when (this) {
+  Rectangle.Handle.Left -> "ew-resize"
+  Rectangle.Handle.TopLeft -> "nwse-resize"
+  Rectangle.Handle.Top -> "ns-resize"
+  Rectangle.Handle.TopRight -> "nesw-resize"
+  Rectangle.Handle.Right -> "ew-resize"
+  Rectangle.Handle.BottomRight -> "nwse-resize"
+  Rectangle.Handle.Bottom -> "ns-resize"
+  Rectangle.Handle.BottomLeft -> "nesw-resize"
 }
 
 fun CanvasRenderingContext2D.draw(blocks: List<Rectangle>) {
@@ -312,11 +331,19 @@ fun init() {
       },
   )
 
+  setCursorToDefaultOnMove(canvas)
+
   addDragFeature(canvas, blocks, ::redraw)
 
   addResizeFeature(canvas, blocks, ::redraw)
 
   redraw()
+}
+
+private fun setCursorToDefaultOnMove(canvas: HTMLCanvasElement) {
+  canvas.addEventListener("mousemove", {
+    canvas.style.cursor = "default"
+  })
 }
 
 fun main() {
