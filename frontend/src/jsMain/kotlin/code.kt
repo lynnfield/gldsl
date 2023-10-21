@@ -7,12 +7,26 @@ import org.w3c.dom.HTMLDivElement
 import org.w3c.dom.events.MouseEvent
 import kotlin.math.roundToInt
 
-class Rectangle(var x: Int, var y: Int, var width: Int, var height: Int) {
+class Rectangle(var x: Int, var y: Int, width: Int, height: Int) {
 
+  companion object {
+
+    const val MIN_SIZE = 5
+  }
+
+  var width: Int
+  var height: Int
   var left = x
-  var right = x + width
+  var right: Int
   var top = y
-  var bottom = y + height
+  var bottom: Int
+
+  init {
+    this.width = width.coerceAtLeast(MIN_SIZE)
+    this.height = height.coerceAtLeast(MIN_SIZE)
+    right = x + width
+    bottom = y + height
+  }
 
   fun contains(x: Int, y: Int): Boolean {
     return left < x && x < right && top < y && y < bottom
@@ -29,76 +43,58 @@ class Rectangle(var x: Int, var y: Int, var width: Int, var height: Int) {
   }
 
   enum class Handle {
-    left, topleft, top, topright, right, bottomright, bottom, bottomleft
+    Left, TopLeft, Top, TopRight, Right, BottomRight, Bottom, BottomLeft
   }
 
   fun resizeTo(handle: Handle, x: Int, y: Int) {
     when (handle) {
-      Handle.left -> {
-        this.x = x
-        this.left = x
-        this.width = this.right - this.left
-        if (this.width < 5) {
-          this.width = 5
-          this.left = this.right - 5
-          this.x = this.left
-        }
+      Handle.Left -> {
+        this.width = (this.right - x).coerceAtLeast(MIN_SIZE)
+        this.left = this.right - this.width
+        this.x = this.left
       }
 
-      Handle.topleft -> {
-        resizeTo(Handle.top, x, y)
-        resizeTo(Handle.left, x, y)
+      Handle.TopLeft -> {
+        resizeTo(Handle.Top, x, y)
+        resizeTo(Handle.Left, x, y)
       }
 
-      Handle.top -> {
-        this.y = y
-        this.top = y
-        this.height = this.bottom - this.top
-        if (this.height < 5) {
-          this.height = 5
-          this.top = this.bottom - 5
-          this.y = this.top
-        }
+      Handle.Top -> {
+        this.height = (this.bottom - y).coerceAtLeast(MIN_SIZE)
+        this.top = this.bottom - this.height
+        this.y = this.top
       }
 
-      Handle.topright -> {
-        resizeTo(Handle.top, x, y)
-        resizeTo(Handle.right, x, y)
+      Handle.TopRight -> {
+        resizeTo(Handle.Top, x, y)
+        resizeTo(Handle.Right, x, y)
       }
 
-      Handle.right -> {
-        this.right = x
-        this.width = this.right - this.left
-        if (this.width < 5) {
-          this.width = 5
-          this.right = this.left + 5
-        }
+      Handle.Right -> {
+        this.width = (x - this.left).coerceAtLeast(MIN_SIZE)
+        this.right = this.left + this.width
       }
 
-      Handle.bottomright -> {
-        resizeTo(Handle.bottom, x, y)
-        resizeTo(Handle.right, x, y)
+      Handle.BottomRight -> {
+        resizeTo(Handle.Bottom, x, y)
+        resizeTo(Handle.Right, x, y)
       }
 
-      Handle.bottom -> {
-        this.bottom = y
-        this.height = this.bottom - this.top
-        if (this.height < 5) {
-          this.height = 5
-          this.bottom = this.top + 5
-        }
+      Handle.Bottom -> {
+        this.height = (y - this.top).coerceAtLeast(MIN_SIZE)
+        this.bottom = this.top + this.height
       }
 
-      Handle.bottomleft -> {
-        resizeTo(Handle.bottom, x, y)
-        resizeTo(Handle.left, x, y)
+      Handle.BottomLeft -> {
+        resizeTo(Handle.Bottom, x, y)
+        resizeTo(Handle.Left, x, y)
       }
     }
   }
 }
 
-fun drawRectangle(ctx: CanvasRenderingContext2D, rectangle: Rectangle) {
-  ctx.strokeRect(
+fun CanvasRenderingContext2D.drawRectangle(rectangle: Rectangle) {
+  strokeRect(
       rectangle.x.toDouble(),
       rectangle.y.toDouble(),
       rectangle.width.toDouble(),
@@ -153,9 +149,9 @@ fun findBlock(blocks: MutableList<Rectangle>, x: Int, y: Int): Rectangle? {
 }
 
 class DraggingRectangle(
-  val rectangle: Rectangle,
-  val offsetX: Int,
-  val offsetY: Int
+  private val rectangle: Rectangle,
+  private val offsetX: Int,
+  private val offsetY: Int
 ) {
 
   fun moveTo(x: Int, y: Int) {
@@ -211,35 +207,35 @@ fun findBlockBorder(blocks: List<Rectangle>, x: Int, y: Int): ResizingRectangle?
   return blocks.firstNotNullOfOrNull { block ->
     if (block.top == y) {
       if (block.left == x) {
-        return ResizingRectangle(block, Rectangle.Handle.topleft)
+        return ResizingRectangle(block, Rectangle.Handle.TopLeft)
       } else if (block.right == x) {
-        return ResizingRectangle(block, Rectangle.Handle.topright)
+        return ResizingRectangle(block, Rectangle.Handle.TopRight)
       } else {
-        return ResizingRectangle(block, Rectangle.Handle.top)
+        return ResizingRectangle(block, Rectangle.Handle.Top)
       }
     } else if (block.right == x) {
       if (block.top == y) {
-        return ResizingRectangle(block, Rectangle.Handle.topright)
+        return ResizingRectangle(block, Rectangle.Handle.TopRight)
       } else if (block.bottom == y) {
-        return ResizingRectangle(block, Rectangle.Handle.bottomright)
+        return ResizingRectangle(block, Rectangle.Handle.BottomRight)
       } else {
-        return ResizingRectangle(block, Rectangle.Handle.right)
+        return ResizingRectangle(block, Rectangle.Handle.Right)
       }
     } else if (block.bottom == y) {
       if (block.left == x) {
-        return ResizingRectangle(block, Rectangle.Handle.bottomleft)
+        return ResizingRectangle(block, Rectangle.Handle.BottomLeft)
       } else if (block.right == x) {
-        return ResizingRectangle(block, Rectangle.Handle.bottomright)
+        return ResizingRectangle(block, Rectangle.Handle.BottomRight)
       } else {
-        return ResizingRectangle(block, Rectangle.Handle.bottom)
+        return ResizingRectangle(block, Rectangle.Handle.Bottom)
       }
     } else if (block.left == x) {
       if (block.top == y) {
-        return ResizingRectangle(block, Rectangle.Handle.topleft)
+        return ResizingRectangle(block, Rectangle.Handle.TopLeft)
       } else if (block.bottom == y) {
-        return ResizingRectangle(block, Rectangle.Handle.bottomleft)
+        return ResizingRectangle(block, Rectangle.Handle.BottomLeft)
       } else {
-        return ResizingRectangle(block, Rectangle.Handle.left)
+        return ResizingRectangle(block, Rectangle.Handle.Left)
       }
     } else {
       null
@@ -248,8 +244,8 @@ fun findBlockBorder(blocks: List<Rectangle>, x: Int, y: Int): ResizingRectangle?
 }
 
 class ResizingRectangle(
-  val rectangle: Rectangle,
-  val handle: Rectangle.Handle,
+  private val rectangle: Rectangle,
+  private val handle: Rectangle.Handle,
 ) {
 
   fun resizeTo(x: Int, y: Int) {
@@ -283,7 +279,7 @@ fun addResizeFeature(canvas: HTMLCanvasElement, blocks: List<Rectangle>, redraw:
     }
   })
 
-  canvas.addEventListener("mousemove", {e ->
+  canvas.addEventListener("mousemove", { e ->
     resizingBlock?.also {
       check(e is MouseEvent) { "should be MouseEvent, but $e" }
 
@@ -297,10 +293,10 @@ fun addResizeFeature(canvas: HTMLCanvasElement, blocks: List<Rectangle>, redraw:
   })
 }
 
-fun draw(ctx: CanvasRenderingContext2D, blocks: List<Rectangle>) {
-  ctx.clearRect(0.0, 0.0, ctx.canvas.width.toDouble(), ctx.canvas.height.toDouble())
+fun CanvasRenderingContext2D.draw(blocks: List<Rectangle>) {
+  clearRect(0.0, 0.0, canvas.width.toDouble(), canvas.height.toDouble())
   for (block in blocks) {
-    drawRectangle(ctx, block)
+    drawRectangle(block)
   }
 }
 
@@ -319,7 +315,7 @@ fun init() {
   val blocks = mutableListOf<Rectangle>()
 
   fun redraw() {
-    draw(ctx, blocks)
+    ctx.draw(blocks)
   }
 
   addContextMenu(
