@@ -1,3 +1,4 @@
+import Rectangle.Companion.RESIZE_HANDLE_HALF_WIDTH
 import kotlinx.browser.document
 import kotlinx.browser.window
 import org.w3c.dom.CanvasRenderingContext2D
@@ -5,6 +6,7 @@ import org.w3c.dom.HTMLButtonElement
 import org.w3c.dom.HTMLCanvasElement
 import org.w3c.dom.HTMLDivElement
 import org.w3c.dom.events.MouseEvent
+import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
 
 class Rectangle(var x: Int, var y: Int, width: Int, height: Int) {
@@ -12,6 +14,7 @@ class Rectangle(var x: Int, var y: Int, width: Int, height: Int) {
   companion object {
 
     const val MIN_SIZE = 5
+    const val RESIZE_HANDLE_HALF_WIDTH = 2
   }
 
   var width: Int
@@ -144,8 +147,13 @@ fun createButtonCreateNewBlock(onCreateNewBlock: () -> Unit): HTMLButtonElement 
   return button
 }
 
-fun findBlock(blocks: MutableList<Rectangle>, x: Int, y: Int): Rectangle? {
-  return blocks.find { it.contains(x, y) }
+fun findBlockForDragging(blocks: MutableList<Rectangle>, x: Int, y: Int): Rectangle? {
+  return blocks.find {
+    it.left + RESIZE_HANDLE_HALF_WIDTH < x &&
+        x < it.right - RESIZE_HANDLE_HALF_WIDTH &&
+        it.top + RESIZE_HANDLE_HALF_WIDTH < y &&
+        y < it.bottom - RESIZE_HANDLE_HALF_WIDTH
+  }
 }
 
 class DraggingRectangle(
@@ -168,7 +176,7 @@ fun addDragFeature(canvas: HTMLCanvasElement, blocks: MutableList<Rectangle>, re
     val mouseX = (e.clientX - canvas.getBoundingClientRect().left).roundToInt()
     val mouseY = (e.clientY - canvas.getBoundingClientRect().top).roundToInt()
 
-    val block = findBlock(blocks, mouseX, mouseY)
+    val block = findBlockForDragging(blocks, mouseX, mouseY)
 
     if (block != null) {
       draggableBlock = DraggingRectangle(
@@ -205,40 +213,20 @@ fun addDragFeature(canvas: HTMLCanvasElement, blocks: MutableList<Rectangle>, re
 
 fun findBlockBorder(blocks: List<Rectangle>, x: Int, y: Int): ResizingRectangle? {
   return blocks.firstNotNullOfOrNull { block ->
-    if (block.top == y) {
-      if (block.left == x) {
-        return ResizingRectangle(block, Rectangle.Handle.TopLeft)
-      } else if (block.right == x) {
-        return ResizingRectangle(block, Rectangle.Handle.TopRight)
-      } else {
-        return ResizingRectangle(block, Rectangle.Handle.Top)
-      }
-    } else if (block.right == x) {
-      if (block.top == y) {
-        return ResizingRectangle(block, Rectangle.Handle.TopRight)
-      } else if (block.bottom == y) {
-        return ResizingRectangle(block, Rectangle.Handle.BottomRight)
-      } else {
-        return ResizingRectangle(block, Rectangle.Handle.Right)
-      }
-    } else if (block.bottom == y) {
-      if (block.left == x) {
-        return ResizingRectangle(block, Rectangle.Handle.BottomLeft)
-      } else if (block.right == x) {
-        return ResizingRectangle(block, Rectangle.Handle.BottomRight)
-      } else {
-        return ResizingRectangle(block, Rectangle.Handle.Bottom)
-      }
-    } else if (block.left == x) {
-      if (block.top == y) {
-        return ResizingRectangle(block, Rectangle.Handle.TopLeft)
-      } else if (block.bottom == y) {
-        return ResizingRectangle(block, Rectangle.Handle.BottomLeft)
-      } else {
-        return ResizingRectangle(block, Rectangle.Handle.Left)
-      }
-    } else {
-      null
+    val nearTop = (block.top - y).absoluteValue <= RESIZE_HANDLE_HALF_WIDTH
+    val nearBottom = (block.bottom - y).absoluteValue <= RESIZE_HANDLE_HALF_WIDTH
+    val nearLeft = (block.left - x).absoluteValue <= RESIZE_HANDLE_HALF_WIDTH
+    val nearRight = (block.right - x).absoluteValue <= RESIZE_HANDLE_HALF_WIDTH
+    when {
+      nearTop && nearLeft -> ResizingRectangle(block, Rectangle.Handle.TopLeft)
+      nearTop && nearRight -> ResizingRectangle(block, Rectangle.Handle.TopRight)
+      nearBottom && nearLeft -> ResizingRectangle(block, Rectangle.Handle.BottomLeft)
+      nearBottom && nearRight -> ResizingRectangle(block, Rectangle.Handle.BottomRight)
+      nearTop && !nearLeft && !nearRight -> ResizingRectangle(block, Rectangle.Handle.Top)
+      nearRight && !nearTop && !nearBottom -> ResizingRectangle(block, Rectangle.Handle.Right)
+      nearBottom && !nearLeft && !nearRight -> ResizingRectangle(block, Rectangle.Handle.Bottom)
+      nearLeft && !nearTop && !nearBottom -> ResizingRectangle(block, Rectangle.Handle.Left)
+      else -> null
     }
   }
 }
