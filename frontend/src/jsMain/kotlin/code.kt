@@ -96,13 +96,23 @@ class Rectangle(var x: Int, var y: Int, width: Int, height: Int) {
   }
 }
 
-fun CanvasRenderingContext2D.drawRectangle(rectangle: Rectangle) {
+class Block(val rectangle: Rectangle) {
+
+  fun moveTo(x: Int, y: Int) = rectangle.moveTo(x, y)
+  fun resizeTo(handle: Rectangle.Handle, x: Int, y: Int) = rectangle.resizeTo(handle, x, y)
+}
+
+fun CanvasRenderingContext2D.draw(rectangle: Rectangle) {
   strokeRect(
       rectangle.x.toDouble(),
       rectangle.y.toDouble(),
       rectangle.width.toDouble(),
       rectangle.height.toDouble(),
   )
+}
+
+fun CanvasRenderingContext2D.draw(block: Block) {
+  draw(block.rectangle)
 }
 
 fun addContextMenu(canvas: HTMLCanvasElement, onCreateNewBlock: (Int, Int) -> Unit) {
@@ -148,25 +158,28 @@ fun createButtonCreateNewBlock(onCreateNewBlock: () -> Unit): HTMLButtonElement 
   return button
 }
 
-fun findBlockForDragging(blocks: MutableList<Rectangle>, x: Int, y: Int): Rectangle? {
-  return blocks.find {
-    it.left + RESIZE_HANDLE_HALF_WIDTH < x && x < it.right - RESIZE_HANDLE_HALF_WIDTH && it.top + RESIZE_HANDLE_HALF_WIDTH < y && y < it.bottom - RESIZE_HANDLE_HALF_WIDTH
-  }
-}
+fun findBlockForDragging(blocks: List<Block>, x: Int, y: Int): Block? =
+    blocks.find { it.rectangle.isInsideDragArea(x, y) }
 
-class DraggingRectangle(
-  private val rectangle: Rectangle,
-  private val offsetX: Int,
-  private val offsetY: Int,
+private fun Rectangle.isInsideDragArea(x: Int, y: Int) =
+    left + RESIZE_HANDLE_HALF_WIDTH < x && x < right - RESIZE_HANDLE_HALF_WIDTH && top + RESIZE_HANDLE_HALF_WIDTH < y && y < bottom - RESIZE_HANDLE_HALF_WIDTH
+
+class DraggingBlock(
+  private val block: Block,
+  draggingPointX: Int,
+  draggingPointY: Int,
 ) {
 
+  private val offsetX: Int = draggingPointX - block.rectangle.x
+  private val offsetY: Int = draggingPointY - block.rectangle.y
+
   fun moveTo(x: Int, y: Int) {
-    rectangle.moveTo(x - offsetX, y - offsetY)
+    block.moveTo(x - offsetX, y - offsetY)
   }
 }
 
-fun addDragFeature(canvas: HTMLCanvasElement, blocks: MutableList<Rectangle>, redraw: () -> Unit) {
-  var draggableBlock: DraggingRectangle? = null
+fun addDragFeature(canvas: HTMLCanvasElement, blocks: List<Block>, redraw: () -> Unit) {
+  var draggableBlock: DraggingBlock? = null
 
   canvas.addEventListener("mousedown", { e ->
     check(e is MouseEvent) { "should be MouseEvent, but $e" }
@@ -177,11 +190,7 @@ fun addDragFeature(canvas: HTMLCanvasElement, blocks: MutableList<Rectangle>, re
     val block = findBlockForDragging(blocks, mouseX, mouseY)
 
     if (block != null) {
-      draggableBlock = DraggingRectangle(
-          block,
-          mouseX - block.x,
-          mouseY - block.y,
-      )
+      draggableBlock = DraggingBlock(block, mouseX, mouseY)
       console.log("drag block", draggableBlock)
     } else {
       console.log("block not found at ($mouseX, $mouseY)")
@@ -213,37 +222,42 @@ fun addDragFeature(canvas: HTMLCanvasElement, blocks: MutableList<Rectangle>, re
   })
 }
 
-fun findBlockBorder(blocks: List<Rectangle>, x: Int, y: Int): ResizingRectangle? {
+fun findBlockBorder(blocks: List<Block>, x: Int, y: Int): ResizingRectangle? {
   return blocks.firstNotNullOfOrNull { block ->
-    val nearTop = (block.top - y).absoluteValue <= RESIZE_HANDLE_HALF_WIDTH && block.left - RESIZE_HANDLE_HALF_WIDTH < x && x < block.right + RESIZE_HANDLE_HALF_WIDTH
-    val nearBottom = (block.bottom - y).absoluteValue <= RESIZE_HANDLE_HALF_WIDTH && block.left - RESIZE_HANDLE_HALF_WIDTH < x && x < block.right + RESIZE_HANDLE_HALF_WIDTH
-    val nearLeft = (block.left - x).absoluteValue <= RESIZE_HANDLE_HALF_WIDTH && block.top - RESIZE_HANDLE_HALF_WIDTH < y && y < block.bottom + RESIZE_HANDLE_HALF_WIDTH
-    val nearRight = (block.right - x).absoluteValue <= RESIZE_HANDLE_HALF_WIDTH && block.top - RESIZE_HANDLE_HALF_WIDTH < y && y < block.bottom + RESIZE_HANDLE_HALF_WIDTH
-    when {
-      nearTop && nearLeft -> ResizingRectangle(block, Rectangle.Handle.TopLeft)
-      nearTop && nearRight -> ResizingRectangle(block, Rectangle.Handle.TopRight)
-      nearBottom && nearLeft -> ResizingRectangle(block, Rectangle.Handle.BottomLeft)
-      nearBottom && nearRight -> ResizingRectangle(block, Rectangle.Handle.BottomRight)
-      nearTop && !nearLeft && !nearRight -> ResizingRectangle(block, Rectangle.Handle.Top)
-      nearRight && !nearTop && !nearBottom -> ResizingRectangle(block, Rectangle.Handle.Right)
-      nearBottom && !nearLeft && !nearRight -> ResizingRectangle(block, Rectangle.Handle.Bottom)
-      nearLeft && !nearTop && !nearBottom -> ResizingRectangle(block, Rectangle.Handle.Left)
-      else -> null
-    }
+    findHandle(block.rectangle, y, x)?.let { ResizingRectangle(block, it) }
   }
 }
 
+private fun findHandle(block: Rectangle, y: Int, x: Int): Rectangle.Handle? {
+  val nearTop = (block.top - y).absoluteValue <= RESIZE_HANDLE_HALF_WIDTH && block.left - RESIZE_HANDLE_HALF_WIDTH < x && x < block.right + RESIZE_HANDLE_HALF_WIDTH
+  val nearBottom = (block.bottom - y).absoluteValue <= RESIZE_HANDLE_HALF_WIDTH && block.left - RESIZE_HANDLE_HALF_WIDTH < x && x < block.right + RESIZE_HANDLE_HALF_WIDTH
+  val nearLeft = (block.left - x).absoluteValue <= RESIZE_HANDLE_HALF_WIDTH && block.top - RESIZE_HANDLE_HALF_WIDTH < y && y < block.bottom + RESIZE_HANDLE_HALF_WIDTH
+  val nearRight = (block.right - x).absoluteValue <= RESIZE_HANDLE_HALF_WIDTH && block.top - RESIZE_HANDLE_HALF_WIDTH < y && y < block.bottom + RESIZE_HANDLE_HALF_WIDTH
+  val handle = when {
+    nearTop && nearLeft -> Rectangle.Handle.TopLeft
+    nearTop && nearRight -> Rectangle.Handle.TopRight
+    nearBottom && nearLeft -> Rectangle.Handle.BottomLeft
+    nearBottom && nearRight -> Rectangle.Handle.BottomRight
+    nearTop && !nearLeft && !nearRight -> Rectangle.Handle.Top
+    nearRight && !nearTop && !nearBottom -> Rectangle.Handle.Right
+    nearBottom && !nearLeft && !nearRight -> Rectangle.Handle.Bottom
+    nearLeft && !nearTop && !nearBottom -> Rectangle.Handle.Left
+    else -> null
+  }
+  return handle
+}
+
 class ResizingRectangle(
-  private val rectangle: Rectangle,
+  private val block: Block,
   val handle: Rectangle.Handle,
 ) {
 
   fun resizeTo(x: Int, y: Int) {
-    rectangle.resizeTo(handle, x, y)
+    block.resizeTo(handle, x, y)
   }
 }
 
-fun addResizeFeature(canvas: HTMLCanvasElement, blocks: List<Rectangle>, redraw: () -> Unit) {
+fun addResizeFeature(canvas: HTMLCanvasElement, blocks: List<Block>, redraw: () -> Unit) {
   var resizingBlock: ResizingRectangle? = null
 
   canvas.addEventListener("mousedown", { e ->
@@ -298,10 +312,10 @@ private fun Rectangle.Handle.asCursorStyle(): String = when (this) {
   Rectangle.Handle.BottomLeft -> "nesw-resize"
 }
 
-fun CanvasRenderingContext2D.draw(blocks: List<Rectangle>) {
+fun CanvasRenderingContext2D.draw(blocks: List<Block>) {
   clearRect(0.0, 0.0, canvas.width.toDouble(), canvas.height.toDouble())
   for (block in blocks) {
-    drawRectangle(block)
+    draw(block)
   }
 }
 
@@ -321,7 +335,7 @@ fun init() {
   val ctx = checkNotNull(renderingContext as? CanvasRenderingContext2D) {
     "failed to convert RenderingContext to CanvasRenderingContext2D"
   }
-  val blocks = mutableListOf<Rectangle>()
+  val blocks = mutableListOf<Block>()
 
   fun redraw() {
     ctx.draw(blocks)
@@ -330,7 +344,7 @@ fun init() {
   addContextMenu(
       canvas = canvas,
       onCreateNewBlock = { x: Int, y: Int ->
-        blocks.add(Rectangle(x, y, 50, 50))
+        blocks.add(Block(Rectangle(x, y, 50, 50)))
         console.log(blocks)
         redraw()
       },
