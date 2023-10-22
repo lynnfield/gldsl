@@ -106,8 +106,9 @@ fun CanvasRenderingContext2D.drawRectangle(rectangle: Rectangle) {
 }
 
 fun addContextMenu(canvas: HTMLCanvasElement, onCreateNewBlock: (Int, Int) -> Unit) {
-  val contextMenu = checkNotNull(document.getElementById(
-      "context-menu")) { "document should contain a div with id 'context-menu'" } as HTMLDivElement
+  val contextMenu = checkNotNull(document.getElementById("context-menu")) {
+    "document should contain a div with id 'context-menu'"
+  } as HTMLDivElement
 
   fun closeContextMenu() {
     contextMenu.style.display = "none"
@@ -305,17 +306,21 @@ fun CanvasRenderingContext2D.draw(blocks: List<Rectangle>) {
 }
 
 fun init() {
-  val canvasElement = checkNotNull(
-      document.getElementById("canvas")) { "element with id 'canvas' is expected" }
-  val canvas = checkNotNull(
-      canvasElement as? HTMLCanvasElement) { "element with id 'canvas' should be of type HtmlCanvasElement" }
+  val canvasElement = checkNotNull(document.getElementById("canvas")) {
+    "element with id 'canvas' is expected"
+  }
+  val canvas = checkNotNull(canvasElement as? HTMLCanvasElement) {
+    "element with id 'canvas' should be of type HtmlCanvasElement"
+  }
   canvas.width = window.innerWidth
   canvas.height = window.innerHeight
 
-  val renderignContext = checkNotNull(canvas.getContext(
-      "2d")) { "failed to obtain context '2d' from the HtmlCanvasElement with id 'canvas'" }
-  val ctx = checkNotNull(
-      renderignContext as? CanvasRenderingContext2D) { "failed to convert RenderingContext to CanvasRenderingContext2D" }
+  val renderingContext = checkNotNull(canvas.getContext("2d")) {
+    "failed to obtain context '2d' from the HtmlCanvasElement with id 'canvas'"
+  }
+  val ctx = checkNotNull(renderingContext as? CanvasRenderingContext2D) {
+    "failed to convert RenderingContext to CanvasRenderingContext2D"
+  }
   val blocks = mutableListOf<Rectangle>()
 
   fun redraw() {
