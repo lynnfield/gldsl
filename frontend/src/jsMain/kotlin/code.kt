@@ -126,17 +126,19 @@ class ConnectionPoint(
   val block: Block,
 ) {
 
-  val x get() = when (position.side) {
-    CoordinateOnSide.Side.Left -> block.rectangle.left
-    CoordinateOnSide.Side.Right -> block.rectangle.right
-    CoordinateOnSide.Side.Top, CoordinateOnSide.Side.Bottom -> block.rectangle.left + (position.fromStart of block.rectangle.width)
-  }
+  val x
+    get() = when (position.side) {
+      CoordinateOnSide.Side.Left -> block.rectangle.left
+      CoordinateOnSide.Side.Right -> block.rectangle.right
+      CoordinateOnSide.Side.Top, CoordinateOnSide.Side.Bottom -> block.rectangle.left + (position.fromStart of block.rectangle.width)
+    }
 
-  val y get() = when (position.side) {
-    CoordinateOnSide.Side.Top -> block.rectangle.top
-    CoordinateOnSide.Side.Bottom -> block.rectangle.bottom
-    CoordinateOnSide.Side.Left, CoordinateOnSide.Side.Right -> block.rectangle.top + (position.fromStart of block.rectangle.height)
-  }
+  val y
+    get() = when (position.side) {
+      CoordinateOnSide.Side.Top -> block.rectangle.top
+      CoordinateOnSide.Side.Bottom -> block.rectangle.bottom
+      CoordinateOnSide.Side.Left, CoordinateOnSide.Side.Right -> block.rectangle.top + (position.fromStart of block.rectangle.height)
+    }
 }
 
 fun CanvasRenderingContext2D.draw(rectangle: Rectangle) {
@@ -209,6 +211,27 @@ fun CanvasRenderingContext2D.draw(blocks: List<Block>) {
   }
 }
 
+fun CanvasRenderingContext2D.draw(blocksAndConnections: BlocksAndConnections) {
+  draw(blocksAndConnections.blocks)
+  draw(blocksAndConnections.connections)
+}
+
+fun CanvasRenderingContext2D.draw(connections: List<Connector>) {
+  connections.forEach { (start, end) ->
+    beginPath()
+    moveTo(start.x.toDouble(), start.y.toDouble())
+    lineTo(end.x.toDouble(), end.y.toDouble())
+    stroke()
+  }
+}
+
+typealias Connector = Pair<ConnectionPoint, ConnectionPoint>
+
+class BlocksAndConnections(
+  val blocks: MutableList<Block> = mutableListOf(),
+  val connections: MutableList<Connector> = mutableListOf(),
+)
+
 fun init() {
   val canvasElement = checkNotNull(document.getElementById("canvas")) {
     "element with id 'canvas' is expected"
@@ -225,9 +248,10 @@ fun init() {
   val ctx = checkNotNull(renderingContext as? CanvasRenderingContext2D) {
     "failed to convert RenderingContext to CanvasRenderingContext2D"
   }
-  val blocks = mutableListOf<Block>()
+  val blocksAndConnections = buildBlocksAndConnections()
+  val blocks = blocksAndConnections.blocks
 
-  fun redraw() = ctx.draw(blocks)
+  fun redraw() = ctx.draw(blocksAndConnections)
 
   addContextMenu(
       canvas = canvas,
@@ -244,14 +268,37 @@ fun init() {
 
   addResizeFeature(canvas, blocks, ::redraw)
 
-  blocks.add(Block(Rectangle(300, 300, 100, 100)).apply {
-    connections.add(ConnectionPoint(CoordinateOnSide(CoordinateOnSide.Side.Top, Percent(3, 10)), this))
-    connections.add(ConnectionPoint(CoordinateOnSide(CoordinateOnSide.Side.Bottom, Percent(6, 10)), this))
-    connections.add(ConnectionPoint(CoordinateOnSide(CoordinateOnSide.Side.Left, Percent(12.5, 100)), this))
-    connections.add(ConnectionPoint(CoordinateOnSide(CoordinateOnSide.Side.Right, Percent(87, 100)), this))
-  })
-
   redraw()
+}
+
+private fun buildBlocksAndConnections(): BlocksAndConnections {
+  //region test data
+  val block1 = Block(Rectangle(300, 300, 100, 100))
+  block1.connections.add(
+      ConnectionPoint(CoordinateOnSide(CoordinateOnSide.Side.Top, Percent(3, 10)), block1))
+  block1.connections.add(
+      ConnectionPoint(CoordinateOnSide(CoordinateOnSide.Side.Bottom, Percent(6, 10)), block1))
+  block1.connections.add(
+      ConnectionPoint(CoordinateOnSide(CoordinateOnSide.Side.Left, Percent(12.5, 100)), block1))
+  val connectionPoint1 = ConnectionPoint(
+      CoordinateOnSide(CoordinateOnSide.Side.Right, Percent(87, 100)), block1)
+  block1.connections.add(connectionPoint1)
+
+  val block2 = Block(Rectangle(600, 600, 100, 100))
+  block1.connections.add(
+      ConnectionPoint(CoordinateOnSide(CoordinateOnSide.Side.Top, Percent(3, 10)), block2))
+  block1.connections.add(
+      ConnectionPoint(CoordinateOnSide(CoordinateOnSide.Side.Bottom, Percent(6, 10)), block2))
+  val connectionPoint2 = ConnectionPoint(
+      CoordinateOnSide(CoordinateOnSide.Side.Left, Percent(12.5, 100)), block2)
+  block1.connections.add(connectionPoint2)
+  block1.connections.add(
+      ConnectionPoint(CoordinateOnSide(CoordinateOnSide.Side.Right, Percent(87, 100)), block2))
+  //endregion
+  return BlocksAndConnections(
+      blocks = mutableListOf(block1, block2),
+      connections = mutableListOf(Connector(connectionPoint1, connectionPoint2))
+  )
 }
 
 private fun setCursorToDefaultOnMove(canvas: HTMLCanvasElement) {
