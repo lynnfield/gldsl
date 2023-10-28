@@ -5,6 +5,8 @@ import org.w3c.dom.HTMLButtonElement
 import org.w3c.dom.HTMLCanvasElement
 import org.w3c.dom.HTMLDivElement
 import org.w3c.dom.events.MouseEvent
+import kotlin.math.PI
+import kotlin.math.roundToInt
 
 class Rectangle(var x: Int, var y: Int, width: Int, height: Int) {
 
@@ -93,10 +95,48 @@ class Rectangle(var x: Int, var y: Int, width: Int, height: Int) {
   }
 }
 
-class Block(val rectangle: Rectangle) {
+class Block(
+  val rectangle: Rectangle,
+) {
+
+  val connections: MutableList<ConnectionPoint> = mutableListOf()
 
   fun moveTo(x: Int, y: Int) = rectangle.moveTo(x, y)
   fun resizeTo(handle: Rectangle.Handle, x: Int, y: Int) = rectangle.resizeTo(handle, x, y)
+}
+
+value class Percent private constructor(private val percent: Double) {
+  constructor(part: Number, whole: Number) : this(part.toDouble() / whole.toDouble())
+
+  infix fun of(value: Int): Int = (value * percent).roundToInt()
+}
+
+class CoordinateOnSide(
+  val side: Side,
+  val fromStart: Percent,
+) {
+
+  enum class Side {
+    Left, Top, Right, Bottom
+  }
+}
+
+class ConnectionPoint(
+  val position: CoordinateOnSide,
+  val block: Block,
+) {
+
+  val x get() = when (position.side) {
+    CoordinateOnSide.Side.Left -> block.rectangle.left
+    CoordinateOnSide.Side.Right -> block.rectangle.right
+    CoordinateOnSide.Side.Top, CoordinateOnSide.Side.Bottom -> block.rectangle.left + (position.fromStart of block.rectangle.width)
+  }
+
+  val y get() = when (position.side) {
+    CoordinateOnSide.Side.Top -> block.rectangle.top
+    CoordinateOnSide.Side.Bottom -> block.rectangle.bottom
+    CoordinateOnSide.Side.Left, CoordinateOnSide.Side.Right -> block.rectangle.top + (position.fromStart of block.rectangle.height)
+  }
 }
 
 fun CanvasRenderingContext2D.draw(rectangle: Rectangle) {
@@ -108,8 +148,15 @@ fun CanvasRenderingContext2D.draw(rectangle: Rectangle) {
   )
 }
 
+fun CanvasRenderingContext2D.draw(connectionPoint: ConnectionPoint) {
+  beginPath()
+  arc(connectionPoint.x.toDouble(), connectionPoint.y.toDouble(), 5.0, 0.0, 2.0 * PI)
+  stroke()
+}
+
 fun CanvasRenderingContext2D.draw(block: Block) {
   draw(block.rectangle)
+  block.connections.forEach { draw(it) }
 }
 
 fun addContextMenu(canvas: HTMLCanvasElement, onCreateNewBlock: (Int, Int) -> Unit) {
@@ -180,9 +227,7 @@ fun init() {
   }
   val blocks = mutableListOf<Block>()
 
-  fun redraw() {
-    ctx.draw(blocks)
-  }
+  fun redraw() = ctx.draw(blocks)
 
   addContextMenu(
       canvas = canvas,
@@ -198,6 +243,13 @@ fun init() {
   addDragFeature(canvas, blocks, ::redraw)
 
   addResizeFeature(canvas, blocks, ::redraw)
+
+  blocks.add(Block(Rectangle(300, 300, 100, 100)).apply {
+    connections.add(ConnectionPoint(CoordinateOnSide(CoordinateOnSide.Side.Top, Percent(3, 10)), this))
+    connections.add(ConnectionPoint(CoordinateOnSide(CoordinateOnSide.Side.Bottom, Percent(6, 10)), this))
+    connections.add(ConnectionPoint(CoordinateOnSide(CoordinateOnSide.Side.Left, Percent(12.5, 100)), this))
+    connections.add(ConnectionPoint(CoordinateOnSide(CoordinateOnSide.Side.Right, Percent(87, 100)), this))
+  })
 
   redraw()
 }
