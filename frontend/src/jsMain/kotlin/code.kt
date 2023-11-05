@@ -1,10 +1,7 @@
 import kotlinx.browser.document
 import kotlinx.browser.window
 import org.w3c.dom.CanvasRenderingContext2D
-import org.w3c.dom.HTMLButtonElement
 import org.w3c.dom.HTMLCanvasElement
-import org.w3c.dom.HTMLDivElement
-import org.w3c.dom.events.MouseEvent
 import kotlin.math.PI
 import kotlin.math.roundToInt
 
@@ -99,7 +96,7 @@ class Block(
   val rectangle: Rectangle,
 ) {
 
-  val connections: MutableList<ConnectionPoint> = mutableListOf()
+  val connectors: MutableList<ConnectionPoint> = mutableListOf()
 
   fun moveTo(x: Int, y: Int) = rectangle.moveTo(x, y)
   fun resizeTo(handle: Rectangle.Handle, x: Int, y: Int) = rectangle.resizeTo(handle, x, y)
@@ -158,50 +155,7 @@ fun CanvasRenderingContext2D.draw(connectionPoint: ConnectionPoint) {
 
 fun CanvasRenderingContext2D.draw(block: Block) {
   draw(block.rectangle)
-  block.connections.forEach { draw(it) }
-}
-
-fun addContextMenu(canvas: HTMLCanvasElement, onCreateNewBlock: (Int, Int) -> Unit) {
-  val contextMenu = checkNotNull(document.getElementById("context-menu")) {
-    "document should contain a div with id 'context-menu'"
-  } as HTMLDivElement
-
-  fun closeContextMenu() {
-    contextMenu.style.display = "none"
-    while (contextMenu.firstChild != null) {
-      contextMenu.lastChild?.also { contextMenu.removeChild(it) }
-    }
-  }
-  canvas.addEventListener("contextmenu", { e ->
-    console.log(e)
-    check(e is MouseEvent) { "should be a MouseEvent, but $e" }
-
-    closeContextMenu()
-
-    contextMenu.style.top = "${e.clientY}px"
-    contextMenu.style.left = "${e.clientX}px"
-    contextMenu.style.display = "block"
-
-    val createNewBlockButton = createButtonCreateNewBlock {
-      onCreateNewBlock(e.clientX, e.clientY)
-      closeContextMenu()
-    }
-
-    contextMenu.appendChild(createNewBlockButton)
-
-    e.preventDefault()
-  })
-  canvas.addEventListener("click", { closeContextMenu() })
-}
-
-fun createButtonCreateNewBlock(onCreateNewBlock: () -> Unit): HTMLButtonElement {
-  val button = document.createElement("button") as HTMLButtonElement
-  button.textContent = "Create new block"
-  button.addEventListener("click", { e ->
-    onCreateNewBlock()
-    e.preventDefault()
-  })
-  return button
+  block.connectors.forEach { draw(it) }
 }
 
 fun CanvasRenderingContext2D.draw(blocks: List<Block>) {
@@ -214,6 +168,7 @@ fun CanvasRenderingContext2D.draw(blocks: List<Block>) {
 fun CanvasRenderingContext2D.draw(blocksAndConnections: BlocksAndConnections) {
   draw(blocksAndConnections.blocks)
   draw(blocksAndConnections.connections)
+  draw(blocksAndConnections.contextMenu)
 }
 
 fun CanvasRenderingContext2D.draw(connections: List<Connector>) {
@@ -230,6 +185,8 @@ typealias Connector = Pair<ConnectionPoint, ConnectionPoint>
 class BlocksAndConnections(
   val blocks: MutableList<Block> = mutableListOf(),
   val connections: MutableList<Connector> = mutableListOf(),
+  var contextMenu: ContextMenu? = null,
+  val contextMenuItems: MutableList<ContextMenu.Item> = mutableListOf(),
 )
 
 fun init() {
@@ -253,14 +210,9 @@ fun init() {
 
   fun redraw() = ctx.draw(blocksAndConnections)
 
-  addContextMenu(
-      canvas = canvas,
-      onCreateNewBlock = { x: Int, y: Int ->
-        blocks.add(Block(Rectangle(x, y, 50, 50)))
-        console.log(blocks)
-        redraw()
-      },
-  )
+  addContextMenuFeature(canvas, blocksAndConnections, ::redraw)
+
+  addCreateNewBlockFeature(blocksAndConnections, ::redraw)
 
   setCursorToDefaultOnMove(canvas)
 
@@ -274,25 +226,25 @@ fun init() {
 private fun buildBlocksAndConnections(): BlocksAndConnections {
   //region test data
   val block1 = Block(Rectangle(300, 300, 100, 100))
-  block1.connections.add(
+  block1.connectors.add(
       ConnectionPoint(CoordinateOnSide(CoordinateOnSide.Side.Top, Percent(3, 10)), block1))
-  block1.connections.add(
+  block1.connectors.add(
       ConnectionPoint(CoordinateOnSide(CoordinateOnSide.Side.Bottom, Percent(6, 10)), block1))
-  block1.connections.add(
+  block1.connectors.add(
       ConnectionPoint(CoordinateOnSide(CoordinateOnSide.Side.Left, Percent(12.5, 100)), block1))
   val connectionPoint1 = ConnectionPoint(
       CoordinateOnSide(CoordinateOnSide.Side.Right, Percent(87, 100)), block1)
-  block1.connections.add(connectionPoint1)
+  block1.connectors.add(connectionPoint1)
 
   val block2 = Block(Rectangle(600, 600, 100, 100))
-  block1.connections.add(
+  block1.connectors.add(
       ConnectionPoint(CoordinateOnSide(CoordinateOnSide.Side.Top, Percent(3, 10)), block2))
-  block1.connections.add(
+  block1.connectors.add(
       ConnectionPoint(CoordinateOnSide(CoordinateOnSide.Side.Bottom, Percent(6, 10)), block2))
   val connectionPoint2 = ConnectionPoint(
       CoordinateOnSide(CoordinateOnSide.Side.Left, Percent(12.5, 100)), block2)
-  block1.connections.add(connectionPoint2)
-  block1.connections.add(
+  block1.connectors.add(connectionPoint2)
+  block1.connectors.add(
       ConnectionPoint(CoordinateOnSide(CoordinateOnSide.Side.Right, Percent(87, 100)), block2))
   //endregion
   return BlocksAndConnections(
