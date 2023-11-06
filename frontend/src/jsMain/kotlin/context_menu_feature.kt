@@ -4,16 +4,16 @@ import org.w3c.dom.HTMLDivElement
 import org.w3c.dom.Node
 import org.w3c.dom.events.MouseEvent
 
-fun addContextMenuFeature(canvas: HTMLCanvasElement, blocksAndConnections: BlocksAndConnections,
+fun addContextMenuFeature(canvas: HTMLCanvasElement, blocksAndLinks: BlocksAndLinks,
   redraw: () -> Unit) {
   canvas.addEventListener("contextmenu", { e ->
     console.log(e)
     check(e is MouseEvent) { "should be a MouseEvent, but $e" }
 
-    blocksAndConnections.contextMenu = ContextMenu(
+    blocksAndLinks.contextMenu = ContextMenu(
         e.clientY,
         e.clientX,
-        items = blocksAndConnections.contextMenuItems,
+        items = blocksAndLinks.contextMenuItems,
     )
 
     redraw()
@@ -22,14 +22,14 @@ fun addContextMenuFeature(canvas: HTMLCanvasElement, blocksAndConnections: Block
     e.stopPropagation()
   })
   canvas.addEventListener("click", {
-    blocksAndConnections.contextMenu = null
+    blocksAndLinks.contextMenu = null
     redraw()
   })
   val contextMenuDiv = checkNotNull(document.getElementById("context-menu") as HTMLDivElement?) {
     "document should contain a div with id 'context-menu'"
   }
   contextMenuDiv.addEventListener("click", {
-    blocksAndConnections.contextMenu = null
+    blocksAndLinks.contextMenu = null
     redraw()
   })
 }
