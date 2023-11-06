@@ -1,6 +1,5 @@
 import org.w3c.dom.HTMLCanvasElement
 import org.w3c.dom.events.MouseEvent
-import kotlin.math.roundToInt
 
 fun findBlockForDragging(blocks: List<Block>, x: Int, y: Int): Block? =
     blocks.find { it.rectangle.isInsideDragArea(x, y) }
@@ -28,16 +27,18 @@ fun addDragFeature(canvas: HTMLCanvasElement, blocks: List<Block>, redraw: () ->
   canvas.addEventListener("mousedown", { e ->
     check(e is MouseEvent) { "should be MouseEvent, but $e" }
 
-    val mouseX = (e.clientX - canvas.getBoundingClientRect().left).roundToInt()
-    val mouseY = (e.clientY - canvas.getBoundingClientRect().top).roundToInt()
+    if (e.button == 0.toShort()) {
+      val mouseX = e.x(canvas)
+      val mouseY = e.y(canvas)
 
-    val block = findBlockForDragging(blocks, mouseX, mouseY)
+      val block = findBlockForDragging(blocks, mouseX, mouseY)
 
-    if (block != null) {
-      draggableBlock = DraggingBlock(block, mouseX, mouseY)
-      console.log("drag block", draggableBlock)
-    } else {
-      console.log("block not found at ($mouseX, $mouseY)")
+      if (block != null) {
+        draggableBlock = DraggingBlock(block, mouseX, mouseY)
+        console.log("drag block", draggableBlock)
+      } else {
+        console.log("block not found at ($mouseX, $mouseY)")
+      }
     }
   })
 
@@ -51,8 +52,8 @@ fun addDragFeature(canvas: HTMLCanvasElement, blocks: List<Block>, redraw: () ->
   canvas.addEventListener("mousemove", { e ->
     check(e is MouseEvent) { "should be MouseEvent, but $e" }
 
-    val mouseX = (e.clientX - canvas.getBoundingClientRect().left).roundToInt()
-    val mouseY = (e.clientY - canvas.getBoundingClientRect().top).roundToInt()
+    val mouseX = e.x(canvas)
+    val mouseY = e.y(canvas)
 
     draggableBlock?.also {
       it.moveTo(mouseX, mouseY)

@@ -1,7 +1,12 @@
 import kotlinx.browser.document
 import kotlinx.browser.window
 import org.w3c.dom.CanvasRenderingContext2D
+import org.w3c.dom.Element
+import org.w3c.dom.HTMLButtonElement
 import org.w3c.dom.HTMLCanvasElement
+import org.w3c.dom.HTMLDivElement
+import org.w3c.dom.Node
+import org.w3c.dom.events.MouseEvent
 import kotlin.math.PI
 import kotlin.math.roundToInt
 
@@ -193,7 +198,7 @@ class BlocksAndLinks(
   val links: MutableList<Link> = mutableListOf(),
   var contextMenu: ContextMenu? = null,
   val contextMenuItems: MutableList<ContextMenu.Item> = mutableListOf(),
-  val selectedConnectionPoint: ConnectionPoint? = null,
+  var selectedConnectionPoint: ConnectionPoint? = null,
 )
 
 fun init() {
@@ -212,14 +217,14 @@ fun init() {
   val ctx = checkNotNull(renderingContext as? CanvasRenderingContext2D) {
     "failed to convert RenderingContext to CanvasRenderingContext2D"
   }
-  val blocksAndConnections = buildBlocksAndConnections()
-  val blocks = blocksAndConnections.blocks
+  val blocksAndLinks = buildBlocksAndLinks()
+  val blocks = blocksAndLinks.blocks
 
-  fun redraw() = ctx.draw(blocksAndConnections)
+  fun redraw() = ctx.draw(blocksAndLinks)
 
-  addContextMenuFeature(canvas, blocksAndConnections, ::redraw)
+  addContextMenuFeature(canvas, blocksAndLinks, ::redraw)
 
-  addCreateNewBlockFeature(blocksAndConnections, ::redraw)
+  addCreateNewBlockFeature(blocksAndLinks, ::redraw)
 
   setCursorToDefaultOnMove(canvas)
 
@@ -227,10 +232,66 @@ fun init() {
 
   addResizeFeature(canvas, blocks, ::redraw)
 
+  addLinkFeature(canvas, blocksAndLinks, ::redraw)
+
   redraw()
 }
 
-private fun buildBlocksAndConnections(): BlocksAndLinks {
+fun addLinkFeature(canvas: HTMLCanvasElement, blocksAndLinks: BlocksAndLinks, redraw: () -> Unit) {
+  // right-click -> check if border -> add context menu action "create connection"
+  canvas.addEventListener("contextmenu", { e ->
+    e as MouseEvent
+
+    val x = e.x(canvas)
+    val y = e.y(canvas)
+
+    val border = findBlockBorder(blocksAndLinks.blocks, x, y)
+    val position = border?.let {
+      val rectangle = it.block.rectangle
+      when (it.handle) {
+        Rectangle.Handle.Left, Rectangle.Handle.TopLeft ->
+          CoordinateOnSide(CoordinateOnSide.Side.Left, Percent(y - rectangle.y, rectangle.height))
+        Rectangle.Handle.Top, Rectangle.Handle.TopRight ->
+          CoordinateOnSide(CoordinateOnSide.Side.Top, Percent(x - rectangle.x, rectangle.width))
+        Rectangle.Handle.Right, Rectangle.Handle.BottomRight ->
+          CoordinateOnSide(CoordinateOnSide.Side.Right, Percent(y - rectangle.y, rectangle.height))
+        Rectangle.Handle.Bottom, Rectangle.Handle.BottomLeft ->
+          CoordinateOnSide(CoordinateOnSide.Side.Bottom, Percent(x - rectangle.x, rectangle.width))
+      }
+    }
+
+    if (position != null) {
+      // "create connection" -> create connection point -> start "creating connection" procedure
+      blocksAndLinks.contextMenuItems.add(object : ContextMenu.Item {
+        override fun createElement(contextMenuDiv: HTMLDivElement): Node {
+          val button = document.createElement("button") as HTMLButtonElement
+          button.textContent = "Add connection point"
+          button.addEventListener("click", {
+            val block = border.block
+            val connectionPoint = ConnectionPoint(position, block)
+            block.connectors.add(connectionPoint)
+            blocksAndLinks.selectedConnectionPoint = connectionPoint
+            blocksAndLinks.contextMenuItems.remove(this)
+          })
+          return button
+        }
+      })
+      redraw()
+    }
+  })
+
+  // "create connection" procedure:
+  // - draw a line between "selected connection point" and "mouse"
+  // - "click" -> check if border -> add "connection point" -> create link between "selected connection point" and "connection point"
+}
+
+fun MouseEvent.x(element: Element): Int =
+    (clientX - element.getBoundingClientRect().left).roundToInt()
+
+fun MouseEvent.y(element: Element): Int =
+    (clientY - element.getBoundingClientRect().top).roundToInt()
+
+private fun buildBlocksAndLinks(): BlocksAndLinks {
   //region test data
   val block1 = Block(Rectangle(300, 300, 100, 100))
   block1.connectors.add(

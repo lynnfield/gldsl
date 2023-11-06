@@ -1,7 +1,6 @@
 import org.w3c.dom.HTMLCanvasElement
 import org.w3c.dom.events.MouseEvent
 import kotlin.math.absoluteValue
-import kotlin.math.roundToInt
 
 fun findBlockBorder(blocks: List<Block>, x: Int, y: Int): ResizingRectangle? {
   return blocks.firstNotNullOfOrNull { block ->
@@ -29,7 +28,7 @@ private fun findHandle(block: Rectangle, y: Int, x: Int): Rectangle.Handle? {
 }
 
 class ResizingRectangle(
-  private val block: Block,
+  val block: Block,
   val handle: Rectangle.Handle,
 ) {
 
@@ -44,16 +43,18 @@ fun addResizeFeature(canvas: HTMLCanvasElement, blocks: List<Block>, redraw: () 
   canvas.addEventListener("mousedown", { e ->
     check(e is MouseEvent) { "should be MouseEvent, but $e" }
 
-    val mouseX = (e.clientX - canvas.getBoundingClientRect().left).roundToInt()
-    val mouseY = (e.clientY - canvas.getBoundingClientRect().top).roundToInt()
+    if (e.button == 0.toShort()) {
+      val mouseX = e.x(canvas)
+      val mouseY = e.y(canvas)
 
-    val foundBlockBorder = findBlockBorder(blocks, mouseX, mouseY)
+      val foundBlockBorder = findBlockBorder(blocks, mouseX, mouseY)
 
-    if (foundBlockBorder != null) {
-      resizingBlock = foundBlockBorder
-      console.log("resize block", foundBlockBorder)
-    } else {
-      console.log("block border not found at ($mouseX, $mouseY)")
+      if (foundBlockBorder != null) {
+        resizingBlock = foundBlockBorder
+        console.log("resize block", foundBlockBorder)
+      } else {
+        console.log("block border not found at ($mouseX, $mouseY)")
+      }
     }
   })
 
@@ -67,8 +68,8 @@ fun addResizeFeature(canvas: HTMLCanvasElement, blocks: List<Block>, redraw: () 
   canvas.addEventListener("mousemove", { e ->
     check(e is MouseEvent) { "should be MouseEvent, but $e" }
 
-    val mouseX = (e.clientX - canvas.getBoundingClientRect().left).roundToInt()
-    val mouseY = (e.clientY - canvas.getBoundingClientRect().top).roundToInt()
+    val mouseX = e.x(canvas)
+    val mouseY = e.y(canvas)
 
     resizingBlock?.also {
       it.resizeTo(mouseX, mouseY)
