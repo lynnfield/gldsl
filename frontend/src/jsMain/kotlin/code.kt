@@ -147,26 +147,32 @@ fun CanvasRenderingContext2D.draw(rectangle: Rectangle) {
   )
 }
 
-fun CanvasRenderingContext2D.draw(connectionPoint: ConnectionPoint) {
+const val CONNECTION_POINT_RADIUS = 5
+
+fun CanvasRenderingContext2D.draw(connectionPoint: ConnectionPoint, selected: ConnectionPoint?) {
   beginPath()
-  arc(connectionPoint.x.toDouble(), connectionPoint.y.toDouble(), 5.0, 0.0, 2.0 * PI)
-  stroke()
+  arc(connectionPoint.x.toDouble(), connectionPoint.y.toDouble(),
+      CONNECTION_POINT_RADIUS.toDouble(), 0.0, 2.0 * PI)
+  if (connectionPoint === selected)
+    fill()
+  else
+    stroke()
 }
 
-fun CanvasRenderingContext2D.draw(block: Block) {
+fun CanvasRenderingContext2D.draw(block: Block, selectedConnectionPoint: ConnectionPoint?) {
   draw(block.rectangle)
-  block.connectors.forEach { draw(it) }
+  block.connectors.forEach { draw(it, selectedConnectionPoint) }
 }
 
-fun CanvasRenderingContext2D.draw(blocks: List<Block>) {
+fun CanvasRenderingContext2D.draw(blocks: List<Block>, selectedConnectionPoint: ConnectionPoint?) {
   clearRect(0.0, 0.0, canvas.width.toDouble(), canvas.height.toDouble())
   for (block in blocks) {
-    draw(block)
+    draw(block, selectedConnectionPoint)
   }
 }
 
 fun CanvasRenderingContext2D.draw(blocksAndConnections: BlocksAndConnections) {
-  draw(blocksAndConnections.blocks)
+  draw(blocksAndConnections.blocks, blocksAndConnections.selectedConnectionPoint)
   draw(blocksAndConnections.connections)
   draw(blocksAndConnections.contextMenu)
 }
@@ -187,6 +193,7 @@ class BlocksAndConnections(
   val connections: MutableList<Connector> = mutableListOf(),
   var contextMenu: ContextMenu? = null,
   val contextMenuItems: MutableList<ContextMenu.Item> = mutableListOf(),
+  val selectedConnectionPoint: ConnectionPoint? = null,
 )
 
 fun init() {
@@ -249,7 +256,7 @@ private fun buildBlocksAndConnections(): BlocksAndConnections {
   //endregion
   return BlocksAndConnections(
       blocks = mutableListOf(block1, block2),
-      connections = mutableListOf(Connector(connectionPoint1, connectionPoint2))
+      connections = mutableListOf(Connector(connectionPoint1, connectionPoint2)),
   )
 }
 
