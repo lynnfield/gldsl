@@ -177,9 +177,17 @@ fun CanvasRenderingContext2D.draw(blocks: List<Block>, selectedConnectionPoint: 
 }
 
 fun CanvasRenderingContext2D.draw(blocksAndLinks: BlocksAndLinks) {
-  draw(blocksAndLinks.blocks, blocksAndLinks.selectedConnectionPoint)
+  draw(blocksAndLinks.blocks, blocksAndLinks.newLinkContext?.start)
   draw(blocksAndLinks.links)
+  blocksAndLinks.newLinkContext?.let { draw(it) }
   draw(blocksAndLinks.contextMenu)
+}
+
+fun CanvasRenderingContext2D.draw(newLinkContext: NewLinkContext) {
+  beginPath()
+  moveTo(newLinkContext.start.x.toDouble(), newLinkContext.start.y.toDouble())
+  lineTo(newLinkContext.endX.toDouble(), newLinkContext.endY.toDouble())
+  stroke()
 }
 
 fun CanvasRenderingContext2D.draw(connections: List<Link>) {
@@ -198,7 +206,13 @@ class BlocksAndLinks(
   val links: MutableList<Link> = mutableListOf(),
   var contextMenu: ContextMenu? = null,
   val contextMenuItems: MutableList<ContextMenu.Item> = mutableListOf(),
-  var selectedConnectionPoint: ConnectionPoint? = null,
+  var newLinkContext: NewLinkContext? = null,
+)
+
+class NewLinkContext(
+  val start: ConnectionPoint,
+  var endX: Int,
+  var endY: Int,
 )
 
 fun init() {
@@ -251,10 +265,13 @@ fun addLinkFeature(canvas: HTMLCanvasElement, blocksAndLinks: BlocksAndLinks, re
       when (it.handle) {
         Rectangle.Handle.Left, Rectangle.Handle.TopLeft ->
           CoordinateOnSide(CoordinateOnSide.Side.Left, Percent(y - rectangle.y, rectangle.height))
+
         Rectangle.Handle.Top, Rectangle.Handle.TopRight ->
           CoordinateOnSide(CoordinateOnSide.Side.Top, Percent(x - rectangle.x, rectangle.width))
+
         Rectangle.Handle.Right, Rectangle.Handle.BottomRight ->
           CoordinateOnSide(CoordinateOnSide.Side.Right, Percent(y - rectangle.y, rectangle.height))
+
         Rectangle.Handle.Bottom, Rectangle.Handle.BottomLeft ->
           CoordinateOnSide(CoordinateOnSide.Side.Bottom, Percent(x - rectangle.x, rectangle.width))
       }
@@ -266,11 +283,12 @@ fun addLinkFeature(canvas: HTMLCanvasElement, blocksAndLinks: BlocksAndLinks, re
         override fun createElement(contextMenuDiv: HTMLDivElement): Node {
           val button = document.createElement("button") as HTMLButtonElement
           button.textContent = "Add connection point"
-          button.addEventListener("click", {
+          button.addEventListener("click", { e ->
+            e as MouseEvent
             val block = border.block
             val connectionPoint = ConnectionPoint(position, block)
             block.connectors.add(connectionPoint)
-            blocksAndLinks.selectedConnectionPoint = connectionPoint
+            blocksAndLinks.newLinkContext = NewLinkContext(connectionPoint, e.x(canvas), e.y(canvas))
             blocksAndLinks.contextMenuItems.remove(this)
           })
           return button
@@ -282,6 +300,16 @@ fun addLinkFeature(canvas: HTMLCanvasElement, blocksAndLinks: BlocksAndLinks, re
 
   // "create connection" procedure:
   // - draw a line between "selected connection point" and "mouse"
+  canvas.addEventListener("mousemove", { e ->
+    blocksAndLinks.newLinkContext?.apply {
+      e as MouseEvent
+
+      endX = e.x(canvas)
+      endY = e.y(canvas)
+
+      redraw()
+    }
+  })
   // - "click" -> check if border -> add "connection point" -> create link between "selected connection point" and "connection point"
 }
 
