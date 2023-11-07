@@ -260,22 +260,7 @@ fun addLinkFeature(canvas: HTMLCanvasElement, blocksAndLinks: BlocksAndLinks, re
     val y = e.y(canvas)
 
     val border = findBlockBorder(blocksAndLinks.blocks, x, y)
-    val position = border?.let {
-      val rectangle = it.block.rectangle
-      when (it.handle) {
-        Rectangle.Handle.Left, Rectangle.Handle.TopLeft ->
-          CoordinateOnSide(CoordinateOnSide.Side.Left, Percent(y - rectangle.y, rectangle.height))
-
-        Rectangle.Handle.Top, Rectangle.Handle.TopRight ->
-          CoordinateOnSide(CoordinateOnSide.Side.Top, Percent(x - rectangle.x, rectangle.width))
-
-        Rectangle.Handle.Right, Rectangle.Handle.BottomRight ->
-          CoordinateOnSide(CoordinateOnSide.Side.Right, Percent(y - rectangle.y, rectangle.height))
-
-        Rectangle.Handle.Bottom, Rectangle.Handle.BottomLeft ->
-          CoordinateOnSide(CoordinateOnSide.Side.Bottom, Percent(x - rectangle.x, rectangle.width))
-      }
-    }
+    val position = border?.toCoordinateOnSide(x, y)
 
     if (position != null) {
       // "create connection" -> create connection point -> start "creating connection" procedure
@@ -288,7 +273,8 @@ fun addLinkFeature(canvas: HTMLCanvasElement, blocksAndLinks: BlocksAndLinks, re
             val block = border.block
             val connectionPoint = ConnectionPoint(position, block)
             block.connectors.add(connectionPoint)
-            blocksAndLinks.newLinkContext = NewLinkContext(connectionPoint, e.x(canvas), e.y(canvas))
+            blocksAndLinks.newLinkContext =
+                NewLinkContext(connectionPoint, e.x(canvas), e.y(canvas))
             blocksAndLinks.contextMenuItems.remove(this)
           })
           return button
@@ -311,6 +297,41 @@ fun addLinkFeature(canvas: HTMLCanvasElement, blocksAndLinks: BlocksAndLinks, re
     }
   })
   // - "click" -> check if border -> add "connection point" -> create link between "selected connection point" and "connection point"
+  canvas.addEventListener("click", { e ->
+    blocksAndLinks.newLinkContext?.also { newLinkContext ->
+      e as MouseEvent
+
+      val x = e.x(canvas)
+      val y = e.y(canvas)
+
+      val border = findBlockBorder(blocksAndLinks.blocks, x, y)
+      if (border?.block != null && border.block !== newLinkContext.start.block) {
+        val coordinateOnSide = border.toCoordinateOnSide(x, y)
+        val connectionPoint = ConnectionPoint(coordinateOnSide, border.block)
+        border.block.connectors.add(connectionPoint)
+        blocksAndLinks.links.add(Link(newLinkContext.start, connectionPoint))
+        blocksAndLinks.newLinkContext = null
+        redraw()
+      }
+    }
+  })
+}
+
+private fun ResizingRectangle.toCoordinateOnSide(x: Int, y: Int): CoordinateOnSide {
+  val rectangle = block.rectangle
+  return when (handle) {
+    Rectangle.Handle.Left, Rectangle.Handle.TopLeft ->
+      CoordinateOnSide(CoordinateOnSide.Side.Left, Percent(y - rectangle.y, rectangle.height))
+
+    Rectangle.Handle.Top, Rectangle.Handle.TopRight ->
+      CoordinateOnSide(CoordinateOnSide.Side.Top, Percent(x - rectangle.x, rectangle.width))
+
+    Rectangle.Handle.Right, Rectangle.Handle.BottomRight ->
+      CoordinateOnSide(CoordinateOnSide.Side.Right, Percent(y - rectangle.y, rectangle.height))
+
+    Rectangle.Handle.Bottom, Rectangle.Handle.BottomLeft ->
+      CoordinateOnSide(CoordinateOnSide.Side.Bottom, Percent(x - rectangle.x, rectangle.width))
+  }
 }
 
 fun MouseEvent.x(element: Element): Int =
