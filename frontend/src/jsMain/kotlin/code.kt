@@ -380,5 +380,5 @@ private fun setCursorToDefaultOnMove(canvas: HTMLCanvasElement) {
 }
 
 fun main() {
-  window.onload = { init() }
+  window.onload = { init() /*newInit()*/ }
 }
