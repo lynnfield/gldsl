@@ -4,29 +4,25 @@ import org.w3c.dom.CanvasRenderingContext2D
 import org.w3c.dom.HTMLCanvasElement
 import org.w3c.dom.events.MouseEvent
 
-class ObjectsLayer(
-  val graphicalLayer: GraphicalLayer
-) {
-
-  class Block
-  class ConnectionPoint
-  class Link
-}
-
 class GraphicalLayer(
   val canvas: HTMLCanvasElement,
-  val onClick: PrimitiveBuilder.() -> Unit
+  val onClick: GraphicalLayer.(ClickEvent) -> Unit
 ) {
+
+  sealed interface ClickEvent
+  inner class EmptySpaceClicked(val x: Int, val y: Int) : ClickEvent
 
   private val drawingContext = canvas.getContext("2d") as CanvasRenderingContext2D
   private val primitives = mutableListOf<Primitive>()
-  private val tagToPrimitive = mutableMapOf<Tag, Primitive>()
+  private val tagToPrimitive = mutableMapOf<String, Primitive>()
 
   init {
+    drawingContext.fillStyle = "rgb(30 31 34)"
+    drawingContext.strokeStyle = "rgb(160 160 160)"
     canvas.addEventListener("click", { event ->
       event as MouseEvent
 
-      PrimitiveBuilder(event.clientX, event.clientY).onClick()
+      onClick(EmptySpaceClicked(event.clientX, event.clientY))
 
       event.preventDefault()
     })
@@ -40,29 +36,26 @@ class GraphicalLayer(
 
   sealed interface Primitive
 
-  class Rectangle(val x: Int, val y: Int, val width: Int, val height: Int) : Primitive
+  class Rectangle(val x: Int = 0, val y: Int = 0, val width: Int = 100, val height: Int = 100) :
+    Primitive
+
+  class Stack(val x: Int, val y: Int, val primitives: List<Primitive>) : Primitive
   class Circle
   class Line
 
-  inner class PrimitiveBuilder(val x: Int, val y: Int) {
-
-    fun addRectangle(tag: Tag, width: Int = 100, height: Int = 100) {
-      Rectangle(x, y, width, height).also {
-        // todo can I use just the map?
-        primitives.add(it)
-        tagToPrimitive[tag] = it
-      }
-      redraw()
+  fun EmptySpaceClicked.addObjects(tag: String, item: Primitive, vararg items: Primitive) {
+    Stack(x, y, listOf(item) + items).also {
+      primitives.add(it)
+      tagToPrimitive[tag] = it
     }
+    redraw()
   }
 
   fun redraw() {
     window.requestAnimationFrame {
       with(drawingContext) {
         save()
-        fillStyle = "rgb(30 31 34)";
-        strokeStyle = "rgb(160 160 160)"
-        fillRect(0.0, 0.0, canvas.width.toDouble(), canvas.height.toDouble());
+        fillRect(0.0, 0.0, canvas.width.toDouble(), canvas.height.toDouble())
         translate(0.5, 0.5)
         draw(primitives)
         restore()
@@ -79,6 +72,7 @@ class GraphicalLayer(
   fun CanvasRenderingContext2D.draw(primitive: Primitive) {
     when (primitive) {
       is Rectangle -> draw(primitive)
+      is Stack -> draw(primitive)
     }
   }
 
@@ -89,6 +83,13 @@ class GraphicalLayer(
         rectangle.width.toDouble(),
         rectangle.height.toDouble(),
     )
+  }
+
+  fun CanvasRenderingContext2D.draw(stack: Stack) {
+    save()
+    translate(stack.x.toDouble(), stack.y.toDouble())
+    stack.primitives.forEach { draw(it) }
+    restore()
   }
 }
 
@@ -104,8 +105,14 @@ fun newInit() {
 
   val graphicalLayer = GraphicalLayer(
       canvas = canvas,
-      onClick = {
-        addRectangle(Tag)
+      onClick = { e ->
+        when (e) {
+          is GraphicalLayer.EmptySpaceClicked -> e.addObjects(
+              "tag",
+              GraphicalLayer.Rectangle(height = 50),
+              GraphicalLayer.Rectangle(y = 50, height = 50),
+          )
+        }
       },
   )
 
