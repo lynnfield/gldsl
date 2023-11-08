@@ -177,10 +177,13 @@ fun CanvasRenderingContext2D.draw(blocks: List<Block>, selectedConnectionPoint: 
 }
 
 fun CanvasRenderingContext2D.draw(blocksAndLinks: BlocksAndLinks) {
+  save()
+  translate(0.5, 0.5)
   draw(blocksAndLinks.blocks, blocksAndLinks.newLinkContext?.start)
   draw(blocksAndLinks.links)
   blocksAndLinks.newLinkContext?.let { draw(it) }
   draw(blocksAndLinks.contextMenu)
+  restore()
 }
 
 fun CanvasRenderingContext2D.draw(newLinkContext: NewLinkContext) {
