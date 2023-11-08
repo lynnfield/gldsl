@@ -14,12 +14,23 @@ class ObjectsLayer(
 }
 
 class GraphicalLayer(
-  val canvas: HTMLCanvasElement
+  val canvas: HTMLCanvasElement,
+  val onClick: PrimitiveBuilder.() -> Unit
 ) {
 
   private val drawingContext = canvas.getContext("2d") as CanvasRenderingContext2D
   private val primitives = mutableListOf<Primitive>()
   private val tagToPrimitive = mutableMapOf<Tag, Primitive>()
+
+  init {
+    canvas.addEventListener("click", { event ->
+      event as MouseEvent
+
+      PrimitiveBuilder(event.clientX, event.clientY).onClick()
+
+      event.preventDefault()
+    })
+  }
 
   interface Tag {
 
@@ -45,20 +56,13 @@ class GraphicalLayer(
     }
   }
 
-  fun addContextMenuListener(onContextMenu: PrimitiveBuilder.() -> Unit) {
-    canvas.addEventListener("contextmenu", { event ->
-      event as MouseEvent
-
-      PrimitiveBuilder(event.clientX, event.clientY).onContextMenu()
-
-      event.preventDefault()
-    })
-  }
-
   fun redraw() {
     window.requestAnimationFrame {
       with(drawingContext) {
         save()
+        fillStyle = "rgb(30 31 34)";
+        strokeStyle = "rgb(160 160 160)"
+        fillRect(0.0, 0.0, canvas.width.toDouble(), canvas.height.toDouble());
         translate(0.5, 0.5)
         draw(primitives)
         restore()
@@ -98,11 +102,14 @@ fun newInit() {
   canvas.width = window.innerWidth
   canvas.height = window.innerHeight
 
-  val graphicalLayer = GraphicalLayer(canvas)
+  val graphicalLayer = GraphicalLayer(
+      canvas = canvas,
+      onClick = {
+        addRectangle(Tag)
+      },
+  )
 
-  graphicalLayer.addContextMenuListener {
-    addRectangle(Tag)
-  }
+  graphicalLayer.redraw()
 }
 
 data object Tag : GraphicalLayer.Tag
