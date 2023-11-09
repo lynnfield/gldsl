@@ -39,9 +39,30 @@ class GraphicalLayer(
   class Rectangle(val x: Int = 0, val y: Int = 0, val width: Int = 100, val height: Int = 100) :
     Primitive
 
-  class Stack(val x: Int, val y: Int, val primitives: List<Primitive>) : Primitive
-  class Circle
-  class Line
+  class Stack(val x: Int, val y: Int, val primitives: List<Primitive>) : Primitive {
+    val width: Int = primitives.maxOf {
+      when (it) {
+        is Rectangle -> it.x + it.width
+        is Stack -> it.x + it.width
+      }
+    } - primitives.minOf {
+      when (it) {
+        is Rectangle -> it.x
+        is Stack -> it.x
+      }
+    }
+    val height: Int = primitives.maxOf {
+      when (it) {
+        is Rectangle -> it.y + it.height
+        is Stack -> it.y + it.height
+      }
+    } - primitives.minOf {
+      when (it) {
+        is Rectangle -> it.y
+        is Stack -> it.y
+      }
+    }
+  }
 
   fun EmptySpaceClicked.addObjects(tag: String, item: Primitive, vararg items: Primitive) {
     Stack(x, y, listOf(item) + items).also {
@@ -109,8 +130,10 @@ fun newInit() {
         when (e) {
           is GraphicalLayer.EmptySpaceClicked -> e.addObjects(
               "tag",
-              GraphicalLayer.Rectangle(height = 50),
-              GraphicalLayer.Rectangle(y = 50, height = 50),
+              GraphicalLayer.Rectangle(height = 30, width = 200),
+              GraphicalLayer.Rectangle(y = 30, height = 100, width = 30),
+              GraphicalLayer.Rectangle(x = 170, y = 30, height = 100, width = 30),
+              GraphicalLayer.Rectangle(x = 30, y = 30, height = 100, width = 140),
           )
         }
       },
