@@ -13,7 +13,6 @@ class GraphicalLayer(
   data class EmptySpaceClicked(val x: Int, val y: Int) : ClickEvent
   data class PrimitiveClicked(val tag: String) : ClickEvent
 
-
   private val drawingContext = canvas.getContext("2d") as CanvasRenderingContext2D
   private val primitives = mutableListOf<Primitive>()
   private val tagToPrimitive = mutableMapOf<String, Primitive>()
@@ -22,29 +21,59 @@ class GraphicalLayer(
   init {
     drawingContext.fillStyle = "rgb(30 31 34)"
     drawingContext.strokeStyle = "rgb(160 160 160)"
-    canvas.addEventListener("click", { event ->
+
+    var movingContext: MovingContext? = null
+    canvas.addEventListener("mousedown", { event ->
       event as MouseEvent
 
-      val found = primitives
+      movingContext = primitives
         .findLast { it.x <= event.clientX && event.clientX <= it.x + it.width && it.y <= event.clientY && event.clientY <= it.y + it.height }
-        ?.let { primitiveToTag[it] }
-
-      if (found != null) {
-        onClick(PrimitiveClicked(found))
-      } else {
-        onClick(EmptySpaceClicked(event.clientX, event.clientY))
-      }
-
-      event.preventDefault()
+        ?.let { MovingContext(it, event.clientX - it.x, event.clientY - it.y) }
     })
+    canvas.addEventListener("mousemove", { event ->
+      event as MouseEvent
+
+      movingContext
+        ?.moveTo(event.clientX, event.clientY)
+        ?.also { redraw() }
+    })
+    canvas.addEventListener("mouseup", { event ->
+      if (movingContext?.dirty != true) {
+        event as MouseEvent
+
+        val found = primitives
+          .findLast { it.x <= event.clientX && event.clientX <= it.x + it.width && it.y <= event.clientY && event.clientY <= it.y + it.height }
+          ?.let { primitiveToTag[it] }
+
+        if (found != null) {
+          onClick(PrimitiveClicked(found))
+        } else {
+          onClick(EmptySpaceClicked(event.clientX, event.clientY))
+        }
+      }
+      movingContext = null
+    })
+  }
+
+  inner class MovingContext(val primitive: Primitive, val offsetX: Int, val offsetY: Int) {
+
+    var dirty: Boolean = false
+      private set
+
+    fun moveTo(x: Int, y: Int) {
+      primitive.x = x - offsetX
+      primitive.y = y - offsetY
+      dirty = true
+    }
   }
 
   sealed interface Primitive
 
-  data class Rectangle(val x: Int = 0, val y: Int = 0, val width: Int = 100, val height: Int = 100) :
+  data class Rectangle(var x: Int = 0, var y: Int = 0, val width: Int = 100,
+    val height: Int = 100) :
     Primitive
 
-  data class Stack(val x: Int, val y: Int, val primitives: List<Primitive>) : Primitive {
+  data class Stack(var x: Int, var y: Int, val primitives: List<Primitive>) : Primitive {
 
     val width: Int = primitives.maxOf { it.x + it.width } - primitives.minOf { it.x }
     val height: Int = primitives.maxOf { it.y + it.height } - primitives.minOf { it.y }
@@ -101,10 +130,24 @@ class GraphicalLayer(
   }
 }
 
-val GraphicalLayer.Primitive.x: Int
+var GraphicalLayer.Primitive.x: Int
   get() = when (this) {
     is GraphicalLayer.Rectangle -> x
     is GraphicalLayer.Stack -> x
+  }
+  set(value) = when (this) {
+    is GraphicalLayer.Rectangle -> x = value
+    is GraphicalLayer.Stack -> x = value
+  }
+
+private var GraphicalLayer.Primitive.y: Int
+  get() = when (this) {
+    is GraphicalLayer.Rectangle -> y
+    is GraphicalLayer.Stack -> y
+  }
+  set(value) = when (this) {
+    is GraphicalLayer.Rectangle -> y = value
+    is GraphicalLayer.Stack -> y = value
   }
 
 private val GraphicalLayer.Primitive.width: Int
@@ -117,12 +160,6 @@ private val GraphicalLayer.Primitive.height: Int
   get() = when (this) {
     is GraphicalLayer.Rectangle -> height
     is GraphicalLayer.Stack -> height
-  }
-
-private val GraphicalLayer.Primitive.y: Int
-  get() = when (this) {
-    is GraphicalLayer.Rectangle -> y
-    is GraphicalLayer.Stack -> y
   }
 
 fun newInit() {
