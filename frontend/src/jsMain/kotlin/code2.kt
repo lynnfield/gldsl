@@ -39,12 +39,6 @@ class GraphicalLayer(
     })
   }
 
-  interface Tag {
-
-    override fun equals(other: Any?): Boolean
-    override fun hashCode(): Int
-  }
-
   sealed interface Primitive
 
   data class Rectangle(val x: Int = 0, val y: Int = 0, val width: Int = 100, val height: Int = 100) :
@@ -162,5 +156,3 @@ fun newInit() {
 
   graphicalLayer.redraw()
 }
-
-data object Tag : GraphicalLayer.Tag
