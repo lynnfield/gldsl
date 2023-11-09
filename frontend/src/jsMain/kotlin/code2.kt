@@ -4,19 +4,19 @@ import org.w3c.dom.CanvasRenderingContext2D
 import org.w3c.dom.HTMLCanvasElement
 import org.w3c.dom.events.MouseEvent
 
-class GraphicalLayer(
+class GraphicalLayer<Key : Hashable>(
   val canvas: HTMLCanvasElement,
-  val onClick: GraphicalLayer.(ClickEvent) -> Unit
+  val onClick: GraphicalLayer<Key>.(ClickEvent<Key>) -> Unit
 ) {
 
-  sealed interface ClickEvent
-  data class EmptySpaceClicked(val x: Int, val y: Int) : ClickEvent
-  data class PrimitiveClicked(val tag: String) : ClickEvent
+  sealed interface ClickEvent<Key : Hashable>
+  data class EmptySpaceClicked<Key : Hashable>(val x: Int, val y: Int) : ClickEvent<Key>
+  data class PrimitiveClicked<Key : Hashable>(val tag: Hashable) : ClickEvent<Key>
 
   private val drawingContext = canvas.getContext("2d") as CanvasRenderingContext2D
   private val primitives = mutableListOf<Primitive>()
-  private val tagToPrimitive = mutableMapOf<String, Primitive>()
-  private val primitiveToTag = mutableMapOf<Primitive, String>()
+  private val tagToPrimitive = mutableMapOf<Hashable, Primitive>()
+  private val primitiveToTag = mutableMapOf<Primitive, Hashable>()
 
   init {
     drawingContext.fillStyle = "rgb(30 31 34)"
@@ -79,7 +79,7 @@ class GraphicalLayer(
     val height: Int = primitives.maxOf { it.y + it.height } - primitives.minOf { it.y }
   }
 
-  fun EmptySpaceClicked.addObjects(tag: String, item: Primitive, vararg items: Primitive) {
+  fun EmptySpaceClicked<*>.createStackHereFor(tag: Key, item: Primitive, vararg items: Primitive) {
     Stack(x, y, listOf(item) + items).also {
       primitives.add(it)
       tagToPrimitive[tag] = it
@@ -162,6 +162,8 @@ private val GraphicalLayer.Primitive.height: Int
     is GraphicalLayer.Stack -> height
   }
 
+data class StringTag(val value: String) : Hashable
+
 fun newInit() {
   val canvasElement = checkNotNull(document.getElementById("canvas")) {
     "element with id 'canvas' is expected"
@@ -172,12 +174,12 @@ fun newInit() {
   canvas.width = window.innerWidth
   canvas.height = window.innerHeight
 
-  val graphicalLayer = GraphicalLayer(
+  val graphicalLayer: GraphicalLayer<StringTag> = GraphicalLayer(
       canvas = canvas,
       onClick = { e ->
         when (e) {
-          is GraphicalLayer.EmptySpaceClicked -> e.addObjects(
-              "tag",
+          is GraphicalLayer.EmptySpaceClicked -> e.createStackHereFor(
+              StringTag("tag"),
               GraphicalLayer.Rectangle(height = 30, width = 200),
               GraphicalLayer.Rectangle(y = 30, height = 100, width = 30),
               GraphicalLayer.Rectangle(x = 170, y = 30, height = 100, width = 30),
