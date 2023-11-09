@@ -10,11 +10,14 @@ class GraphicalLayer(
 ) {
 
   sealed interface ClickEvent
-  inner class EmptySpaceClicked(val x: Int, val y: Int) : ClickEvent
+  data class EmptySpaceClicked(val x: Int, val y: Int) : ClickEvent
+  data class PrimitiveClicked(val tag: String) : ClickEvent
+
 
   private val drawingContext = canvas.getContext("2d") as CanvasRenderingContext2D
   private val primitives = mutableListOf<Primitive>()
   private val tagToPrimitive = mutableMapOf<String, Primitive>()
+  private val primitiveToTag = mutableMapOf<Primitive, String>()
 
   init {
     drawingContext.fillStyle = "rgb(30 31 34)"
@@ -22,7 +25,15 @@ class GraphicalLayer(
     canvas.addEventListener("click", { event ->
       event as MouseEvent
 
-      onClick(EmptySpaceClicked(event.clientX, event.clientY))
+      val found = primitives
+        .findLast { it.x <= event.clientX && event.clientX <= it.x + it.width && it.y <= event.clientY && event.clientY <= it.y + it.height }
+        ?.let { primitiveToTag[it] }
+
+      if (found != null) {
+        onClick(PrimitiveClicked(found))
+      } else {
+        onClick(EmptySpaceClicked(event.clientX, event.clientY))
+      }
 
       event.preventDefault()
     })
@@ -36,38 +47,20 @@ class GraphicalLayer(
 
   sealed interface Primitive
 
-  class Rectangle(val x: Int = 0, val y: Int = 0, val width: Int = 100, val height: Int = 100) :
+  data class Rectangle(val x: Int = 0, val y: Int = 0, val width: Int = 100, val height: Int = 100) :
     Primitive
 
-  class Stack(val x: Int, val y: Int, val primitives: List<Primitive>) : Primitive {
-    val width: Int = primitives.maxOf {
-      when (it) {
-        is Rectangle -> it.x + it.width
-        is Stack -> it.x + it.width
-      }
-    } - primitives.minOf {
-      when (it) {
-        is Rectangle -> it.x
-        is Stack -> it.x
-      }
-    }
-    val height: Int = primitives.maxOf {
-      when (it) {
-        is Rectangle -> it.y + it.height
-        is Stack -> it.y + it.height
-      }
-    } - primitives.minOf {
-      when (it) {
-        is Rectangle -> it.y
-        is Stack -> it.y
-      }
-    }
+  data class Stack(val x: Int, val y: Int, val primitives: List<Primitive>) : Primitive {
+
+    val width: Int = primitives.maxOf { it.x + it.width } - primitives.minOf { it.x }
+    val height: Int = primitives.maxOf { it.y + it.height } - primitives.minOf { it.y }
   }
 
   fun EmptySpaceClicked.addObjects(tag: String, item: Primitive, vararg items: Primitive) {
     Stack(x, y, listOf(item) + items).also {
       primitives.add(it)
       tagToPrimitive[tag] = it
+      primitiveToTag[it] = tag
     }
     redraw()
   }
@@ -114,6 +107,30 @@ class GraphicalLayer(
   }
 }
 
+val GraphicalLayer.Primitive.x: Int
+  get() = when (this) {
+    is GraphicalLayer.Rectangle -> x
+    is GraphicalLayer.Stack -> x
+  }
+
+private val GraphicalLayer.Primitive.width: Int
+  get() = when (this) {
+    is GraphicalLayer.Rectangle -> width
+    is GraphicalLayer.Stack -> width
+  }
+
+private val GraphicalLayer.Primitive.height: Int
+  get() = when (this) {
+    is GraphicalLayer.Rectangle -> height
+    is GraphicalLayer.Stack -> height
+  }
+
+private val GraphicalLayer.Primitive.y: Int
+  get() = when (this) {
+    is GraphicalLayer.Rectangle -> y
+    is GraphicalLayer.Stack -> y
+  }
+
 fun newInit() {
   val canvasElement = checkNotNull(document.getElementById("canvas")) {
     "element with id 'canvas' is expected"
@@ -135,6 +152,10 @@ fun newInit() {
               GraphicalLayer.Rectangle(x = 170, y = 30, height = 100, width = 30),
               GraphicalLayer.Rectangle(x = 30, y = 30, height = 100, width = 140),
           )
+
+          is GraphicalLayer.PrimitiveClicked -> {
+            console.log(e)
+          }
         }
       },
   )
