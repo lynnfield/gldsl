@@ -11,8 +11,12 @@ class GraphicalLayer<KeyType : Hashable>(
 
   sealed interface ClickEvent<KeyType : Hashable>
   data class EmptySpaceClicked<KeyType : Hashable>(val x: Int, val y: Int) : ClickEvent<KeyType>
-  data class PrimitiveClicked<KeyType : Hashable>(val path: List<KeyType>, val x: Int, val y: Int) :
-    ClickEvent<KeyType>
+  data class PrimitiveClicked<KeyType : Hashable>(
+    val path: List<KeyType>,
+    val x: Int,
+    val y: Int,
+    val primitives: List<Primitive>
+  ) : ClickEvent<KeyType>
 
   private val drawingContext = canvas.getContext("2d") as CanvasRenderingContext2D
 
@@ -24,6 +28,7 @@ class GraphicalLayer<KeyType : Hashable>(
   private val hierarchy = mutableMapOf<Stack, MutableList<Primitive>>(root to mutableListOf())
   private val primitivesKeys = mutableMapOf<Primitive, KeyOrRoot<KeyType>>(root to RootKey)
 
+  //region primitives' extensions
   private fun Stack.add(primitive: Primitive, key: KeyType?) {
     hierarchy.getOrPut(this) { mutableListOf() }.add(primitive)
     if (key != null) primitivesKeys[primitive] = Key(key)
@@ -57,44 +62,89 @@ class GraphicalLayer<KeyType : Hashable>(
       emptyList()
     }
   }
+  //endregion
+
+  private var currentAction: CurrentAction? = null
 
   init {
     drawingContext.fillStyle = "rgb(30 31 34)"
     drawingContext.strokeStyle = "rgb(160 160 160)"
-
-    var movingContext: MovingContext? = null
     canvas.addEventListener("mousedown", { event ->
       event as MouseEvent
 
-      movingContext = root.findAt(event.clientX, event.clientY)
+      currentAction = root.findAt(event.clientX, event.clientY)
         .filterIsInstance<Stack>()
         .minus(root) // root is not draggable, yet
         .lastOrNull()
-        ?.let { MovingContext(it, event.clientX - it.x, event.clientY - it.y) }
+        ?.let { Moving(it, event.clientX - it.x, event.clientY - it.y) }
     })
     canvas.addEventListener("mousemove", { event ->
       event as MouseEvent
 
-      movingContext
-        ?.moveTo(event.clientX, event.clientY)
-        ?.also { redraw() }
+      when (val action = currentAction) {
+        is Moving -> action.moveTo(event.clientX, event.clientY)
+        is Connecting -> {
+          action.pointerX = event.clientX
+          action.pointerY = event.clientY
+        }
+
+        null -> Unit
+      }
+
+      currentAction?.also { redraw() }
     })
     canvas.addEventListener("mouseup", { event ->
-      if (movingContext?.dirty != true) {
-        event as MouseEvent
+      when (val action = currentAction) {
+        is Moving -> {
+          currentAction = null
+          if (!action.dirty) {
+            event as MouseEvent
 
-        val keys = root.findAt(event.clientX, event.clientY).mapNotNull { (primitivesKeys[it] as? Key<KeyType>)?.value }
-        if (keys.isNotEmpty()) {
-          onClick(PrimitiveClicked(keys, event.clientX, event.clientY))
-        } else {
-          onClick(EmptySpaceClicked(event.clientX, event.clientY))
+            val primitives = root.findAt(event.clientX, event.clientY)
+            val keys = primitives.mapNotNull { (primitivesKeys[it] as? Key<KeyType>)?.value }
+            if (keys.isNotEmpty()) {
+              onClick(PrimitiveClicked(keys, event.clientX, event.clientY, primitives))
+            } else {
+              onClick(EmptySpaceClicked(event.clientX, event.clientY))
+            }
+          }
+        }
+
+        is Connecting -> {
+          event as MouseEvent
+
+          val primitives = root.findAt(event.clientX, event.clientY)
+          val keys = primitives.mapNotNull { (primitivesKeys[it] as? Key<KeyType>)?.value }
+          if (keys.isNotEmpty()) {
+            onClick(PrimitiveClicked(keys, event.clientX, event.clientY, primitives))
+          } else {
+            onClick(EmptySpaceClicked(event.clientX, event.clientY))
+          }
+        }
+
+        null -> {
+          event as MouseEvent
+
+          val primitives = root.findAt(event.clientX, event.clientY)
+          val keys = primitives.mapNotNull { (primitivesKeys[it] as? Key<KeyType>)?.value }
+          if (keys.isNotEmpty()) {
+            onClick(PrimitiveClicked(keys, event.clientX, event.clientY, primitives))
+          } else {
+            onClick(EmptySpaceClicked(event.clientX, event.clientY))
+          }
         }
       }
-      movingContext = null
     })
   }
 
-  private inner class MovingContext(val primitive: Primitive, val offsetX: Int, val offsetY: Int) {
+  sealed interface CurrentAction
+
+  // todo not working when a Stack moved about a half below bottom fo the screen (canvas?)
+  private class Moving(
+    val primitive: Primitive,
+    val offsetX: Int,
+    val offsetY: Int,
+  ) : CurrentAction {
 
     var dirty: Boolean = false
       private set
@@ -105,6 +155,14 @@ class GraphicalLayer<KeyType : Hashable>(
       dirty = true
     }
   }
+
+  private class Connecting(
+    val primitive: Primitive,
+    val offsetX: Int,
+    val offsetY: Int,
+    var pointerX: Int = offsetX,
+    var pointerY: Int = offsetY,
+  ) : CurrentAction
 
   sealed interface Primitive : Hashable
 
@@ -138,13 +196,19 @@ class GraphicalLayer<KeyType : Hashable>(
     }
   }
 
-  fun EmptySpaceClicked<*>.createStackHereFor(tag: KeyType, buildStack: StackBuilder.() -> Unit) {
+  fun EmptySpaceClicked<KeyType>.createStackHereFor(tag: KeyType,
+    buildStack: StackBuilder.() -> Unit) {
     Stack(x, y, 0, 0).also {
       root.add(it, tag)
       StackBuilder { key, primitive -> it.add(primitive, key) }.buildStack()
       it.recalculateSize()
     }
 
+    redraw()
+  }
+
+  fun PrimitiveClicked<KeyType>.connectFromHere() {
+    currentAction = Connecting(primitives.last(), x, y)
     redraw()
   }
 
@@ -155,6 +219,16 @@ class GraphicalLayer<KeyType : Hashable>(
         fillRect(0.0, 0.0, canvas.width.toDouble(), canvas.height.toDouble())
         translate(0.5, 0.5)
         draw(root)
+        when (val action = currentAction) {
+          is Connecting -> {
+            beginPath()
+            moveTo(action.offsetX.toDouble(), action.offsetY.toDouble())
+            lineTo(action.pointerX.toDouble(), action.pointerY.toDouble())
+            stroke()
+          }
+
+          is Moving, null -> Unit
+        }
         restore()
       }
     }
@@ -244,6 +318,8 @@ fun newInit() {
       canvas = canvas,
       onClick = { e ->
         when (e) {
+          // todo add feature to add names on creation and rename block
+          // todo add feature to add names and rename input and output
           is GraphicalLayer.EmptySpaceClicked -> e.createStackHereFor(StringTag(randomName())) {
             rectangle(StringTag("name"), height = 30, width = 200)
             rectangle(StringTag("input"), y = 30, height = 100, width = 30)
@@ -252,8 +328,12 @@ fun newInit() {
           }
 
           is GraphicalLayer.PrimitiveClicked -> {
-            // todo add behaviour like "click-to-connect" or "click-to-rename"
             console.log(e.path.joinToString(" > "))
+            // todo add behaviour like "click-to-connect"
+            //  add behaviour to connect to selected target
+            //  add behaviour to cancel connection when clicked outside
+            e.connectFromHere()
+            // todo add behaviour like "click-to-rename"
           }
         }
       },
